@@ -24,7 +24,7 @@ export default function EditorPincel({ imagemUrl, imagemOriginalUrl, onConfirmar
   const canvasContainerRef = useRef<HTMLDivElement>(null)
   const lupaRef = useRef<HTMLDivElement>(null)
   const lupaCanvasRef = useRef<HTMLCanvasElement>(null)
-  const LUPA_R = 65
+  const LUPA_R = 85
 
   const desenhando = useRef(false)
   const tracadoAtual = useRef<Array<{ x: number; y: number }>>([])
