@@ -60,9 +60,7 @@ export default function ModalTryOn({ look, onClose }: Props) {
     setErro('')
     setResultado(null)
 
-    // Ordena as peças selecionadas conforme ORDEM
     const pecasOrdenadas = pecas.filter(p => selecionadas.has(p.id))
-
     let pessoaAtual: File = pessoaFile
     let ultimaUrl = ''
 
@@ -70,24 +68,39 @@ export default function ModalTryOn({ look, onClose }: Props) {
       for (let i = 0; i < pecasOrdenadas.length; i++) {
         const peca = pecasOrdenadas[i]
         const label = peca.nome || CATEGORIAS.find(c => c.value === peca.categoria)?.label || 'peça'
-        setProgresso(`${i + 1} / ${pecasOrdenadas.length}: ${label}...`)
 
-        const form = new FormData()
-        form.append('pessoa', pessoaAtual)
-        form.append('roupa_url', peca.imagem_url)
+        // Tenta até 3 vezes com wait progressivo
+        let sucesso = false
+        for (let tentativa = 0; tentativa < 3; tentativa++) {
+          setProgresso(`${i + 1}/${pecasOrdenadas.length}: ${label}${tentativa > 0 ? ` (tentativa ${tentativa + 1})` : ''}...`)
 
-        const res = await fetch('/api/tryon', { method: 'POST', body: form })
-        const json = await res.json()
+          try {
+            const form = new FormData()
+            form.append('pessoa', pessoaAtual)
+            form.append('roupa_url', peca.imagem_url)
 
-        if (!json.url) throw new Error(json.error || 'Erro na geração')
-        ultimaUrl = json.url
+            const res = await fetch('/api/tryon', { method: 'POST', body: form, signal: AbortSignal.timeout(120000) })
+            const json = await res.json()
 
-        // Baixa o resultado para usar como "pessoa" na próxima iteração
-        if (i < pecasOrdenadas.length - 1) {
-          const imgResp = await fetch(json.url)
-          const blob = await imgResp.blob()
-          pessoaAtual = new File([blob], 'resultado.jpg', { type: 'image/jpeg' })
+            if (!json.url) throw new Error(json.error || 'Erro na geração')
+            ultimaUrl = json.url
+
+            if (i < pecasOrdenadas.length - 1) {
+              const imgResp = await fetch(json.url)
+              const blob = await imgResp.blob()
+              pessoaAtual = new File([blob], 'resultado.jpg', { type: 'image/jpeg' })
+            }
+            sucesso = true
+            break
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Erro desconhecido'
+            if (tentativa === 2) throw err
+            // Wait progressivo antes da próxima tentativa: 10s, 15s
+            setProgresso(`${i + 1}/${pecasOrdenadas.length}: ${label} — reconectando em ${15 - tentativa * 5}s...`)
+            await new Promise(r => setTimeout(r, (15 - tentativa * 5) * 1000))
+          }
         }
+        if (!sucesso) throw new Error('Falha após 3 tentativas')
       }
       setResultado(ultimaUrl)
     } catch (err: unknown) {

@@ -1,25 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-export const maxDuration = 300 // 5 min para HF Space acordar + processar
+export const maxDuration = 300 // 5 min para processar
 
 async function conectarGradio() {
   const { Client } = await import('@gradio/client')
-  // Acorda o Space (pode estar hibernando no plano gratuito)
-  try {
-    await fetch('https://levihsu-ootdiffusion.hf.space/', {
-      signal: AbortSignal.timeout(12000),
-    })
-  } catch { /* ignora — só um "ping" de wake-up */ }
 
-  // Tenta conectar com até 3 tentativas
-  for (let tentativa = 0; tentativa < 3; tentativa++) {
+  // Tenta conectar com retries + waits progressivos
+  for (let tentativa = 0; tentativa < 5; tentativa++) {
     try {
-      return await Client.connect('levihsu/OOTDiffusion', {
+      const client = await Client.connect('Kwai-Kolors/Kolors-Virtual-Try-On', {
         token: process.env.HF_TOKEN as `hf_${string}`,
       })
+      return client
     } catch (err) {
-      if (tentativa === 2) throw err
-      await new Promise(r => setTimeout(r, 6000))
+      if (tentativa === 4) throw err
+      // Wait progressivo: 3s, 5s, 7s, 10s
+      const wait = 3000 + tentativa * 2000
+      await new Promise(r => setTimeout(r, wait))
     }
   }
   throw new Error('Não foi possível conectar ao servidor de try-on.')
@@ -47,13 +44,10 @@ export async function POST(req: NextRequest) {
       type: roupaBlob.type || 'image/png',
     })
 
-    const result = await client.predict('/process_dc', {
-      vton_img: pessoaFile,
-      garm_img: roupaFile,
-      n_samples: 1,
-      n_steps: 20,
-      image_scale: 2,
-      seed: -1,
+    // Kolors-Virtual-Try-On espera: person_image, garment_image
+    const result = await client.predict('/virtual_try_on', {
+      person_image: pessoaFile,
+      garment_image: roupaFile,
     })
 
     const data = result.data as unknown[]
@@ -70,9 +64,6 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Erro desconhecido'
     console.error('[tryon]', msg)
-    const amigavel = msg.includes('config') || msg.includes('connect')
-      ? 'O servidor de try-on está iniciando. Aguarde 30 segundos e tente novamente.'
-      : msg
-    return NextResponse.json({ error: amigavel }, { status: 500 })
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
