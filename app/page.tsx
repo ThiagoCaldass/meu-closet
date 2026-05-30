@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { getSupabase, Roupa, ModoLook } from '@/lib/supabase'
+import { getUsuarioAtual } from '@/lib/supabase-user'
 import NavegadorPeca from '@/components/NavegadorPeca'
 import ModalSalvarLook from '@/components/ModalSalvarLook'
 import { Save } from 'lucide-react'
@@ -34,7 +35,9 @@ export default function VisualizadorPage() {
   useEffect(() => { carregarCloset() }, [])
 
   const carregarCloset = async () => {
-    const { data } = await getSupabase().from('roupas').select('*').order('created_at', { ascending: false })
+    const usuario = getUsuarioAtual()
+    if (!usuario) return
+    const { data } = await getSupabase().from('roupas').select('*').eq('usuario', usuario).order('created_at', { ascending: false })
     if (!data) return
     setCloset({
       sapatos: data.filter((r) => r.categoria === 'sapato'),

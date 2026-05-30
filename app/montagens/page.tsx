@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { getSupabase, Montagem } from '@/lib/supabase'
+import { getUsuarioAtual } from '@/lib/supabase-user'
 import EditorMontagem from '@/components/EditorMontagem'
 import { Trash2, Download, Plus } from 'lucide-react'
 
@@ -15,8 +16,11 @@ export default function MontagensPage() {
 
   const carregar = async () => {
     setLoading(true)
-    const { data } = await getSupabase().from('montagens').select('*').order('created_at', { ascending: false })
-    setMontagens(data || [])
+    const usuario = getUsuarioAtual()
+    if (usuario) {
+      const { data } = await getSupabase().from('montagens').select('*').eq('usuario', usuario).order('created_at', { ascending: false })
+      setMontagens(data || [])
+    }
     setLoading(false)
   }
 
@@ -29,11 +33,13 @@ export default function MontagensPage() {
   }
 
   const salvarMontagem = async (blob: Blob, nome: string) => {
+    const usuario = getUsuarioAtual()
+    if (!usuario) { alert('Usuário não selecionado'); return }
     const path = `${Date.now()}.jpg`
     const { error } = await getSupabase().storage.from('montagens').upload(path, blob, { contentType: 'image/jpeg' })
     if (error) { alert('Erro ao salvar'); return }
     const { data: { publicUrl } } = getSupabase().storage.from('montagens').getPublicUrl(path)
-    await getSupabase().from('montagens').insert({ nome, imagem_url: publicUrl })
+    await getSupabase().from('montagens').insert({ nome, imagem_url: publicUrl, usuario })
     setCriando(false)
     carregar()
   }

@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { getSupabase, Roupa, ModoLook } from '@/lib/supabase'
+import { getUsuarioAtual } from '@/lib/supabase-user'
 import ModalSalvarLook from '@/components/ModalSalvarLook'
 import SlotLook from '@/components/SlotLook'
 import { Shuffle, Save } from 'lucide-react'
@@ -31,7 +32,9 @@ export default function AleatorioPage() {
   useEffect(() => { carregar() }, [])
 
   const carregar = async () => {
-    const { data } = await getSupabase().from('roupas').select('*')
+    const usuario = getUsuarioAtual()
+    if (!usuario) return
+    const { data } = await getSupabase().from('roupas').select('*').eq('usuario', usuario)
     if (!data) return
     const grouped: Record<string, Roupa[]> = {}
     data.forEach((r) => {

@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { getSupabase, Roupa, ModoLook } from '@/lib/supabase'
+import { getUsuarioAtual } from '@/lib/supabase-user'
 import { X } from 'lucide-react'
 
 interface Selecao {
@@ -28,6 +29,9 @@ export default function ModalSalvarLook({ selecao, onClose, onSalvo }: Props) {
     setLoading(true)
     setErro('')
 
+    const usuario = getUsuarioAtual()
+    if (!usuario) { setErro('Usuário não selecionado'); setLoading(false); return }
+
     const { error } = await getSupabase().from('looks').insert({
       nome: nome.trim(),
       modo: selecao.modo,
@@ -36,6 +40,7 @@ export default function ModalSalvarLook({ selecao, onClose, onSalvo }: Props) {
       parte_cima_id: selecao.parte_cima?.id ?? null,
       corpo_inteiro_id: selecao.corpo_inteiro?.id ?? null,
       acessorio_id: selecao.acessorio?.id ?? null,
+      usuario,
     })
 
     if (error) { setErro('Erro ao salvar look'); setLoading(false); return }
