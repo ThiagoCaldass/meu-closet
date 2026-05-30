@@ -2,7 +2,7 @@
 import { useState, useRef } from 'react'
 import Image from 'next/image'
 import { getSupabase, CATEGORIAS, Categoria } from '@/lib/supabase'
-import { X, Camera, Upload } from 'lucide-react'
+import { X, Camera, Upload, Sparkles } from 'lucide-react'
 
 interface Props {
   onClose: () => void
@@ -15,12 +15,29 @@ export default function ModalAddRoupa({ onClose, onAdded }: Props) {
   const [preview, setPreview] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
+  const [processando, setProcessando] = useState(false)
   const [erro, setErro] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const handleFile = (f: File) => {
-    setFile(f)
+  const handleFile = async (f: File) => {
+    setErro('')
     setPreview(URL.createObjectURL(f))
+    setFile(f)
+    setProcessando(true)
+
+    try {
+      const { removeBackground } = await import('@imgly/background-removal')
+      const blob = await removeBackground(f, {
+        output: { format: 'image/png', quality: 0.9 },
+      })
+      const processed = new File([blob], f.name.replace(/\.[^.]+$/, '.png'), { type: 'image/png' })
+      setFile(processed)
+      setPreview(URL.createObjectURL(processed))
+    } catch {
+      // mantém a imagem original se o processamento falhar
+    } finally {
+      setProcessando(false)
+    }
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -32,7 +49,7 @@ export default function ModalAddRoupa({ onClose, onAdded }: Props) {
     setLoading(true)
     setErro('')
 
-    const ext = file.name.split('.').pop()
+    const ext = file.type === 'image/png' ? 'png' : (file.name.split('.').pop() ?? 'jpg')
     const path = `${categoria}/${Date.now()}.${ext}`
 
     const { error: uploadError } = await getSupabase().storage
@@ -107,19 +124,43 @@ export default function ModalAddRoupa({ onClose, onAdded }: Props) {
 
         {preview ? (
           <div className="relative mb-4">
-            <Image
-              src={preview}
-              alt="Preview"
-              width={400}
-              height={300}
-              className="w-full h-56 object-cover rounded-2xl"
-            />
-            <button
-              onClick={() => { setPreview(null); setFile(null) }}
-              className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1"
+            {/* fundo quadriculado para mostrar transparência */}
+            <div
+              className="w-full h-56 rounded-2xl overflow-hidden"
+              style={{ background: 'repeating-conic-gradient(#e5e7eb 0% 25%, white 0% 50%) 0 0 / 16px 16px' }}
             >
-              <X size={16} />
-            </button>
+              <Image
+                src={preview}
+                alt="Preview"
+                width={400}
+                height={224}
+                className="w-full h-full object-contain"
+              />
+            </div>
+
+            {/* overlay de loading do processamento */}
+            {processando && (
+              <div className="absolute inset-0 bg-white/80 rounded-2xl flex flex-col items-center justify-center gap-2">
+                <Sparkles size={28} className="text-indigo-500 animate-pulse" />
+                <p className="text-sm font-medium text-indigo-600">Removendo fundo...</p>
+                <p className="text-xs text-gray-400">Isso leva alguns segundos</p>
+              </div>
+            )}
+
+            {!processando && (
+              <button
+                onClick={() => { setPreview(null); setFile(null) }}
+                className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1"
+              >
+                <X size={16} />
+              </button>
+            )}
+
+            {!processando && (
+              <div className="absolute bottom-2 left-2 bg-indigo-600/90 text-white text-xs px-2 py-1 rounded-lg flex items-center gap-1">
+                <Sparkles size={11} /> Fundo removido
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex gap-3 mb-4">
@@ -140,14 +181,21 @@ export default function ModalAddRoupa({ onClose, onAdded }: Props) {
           </div>
         )}
 
+        {!preview && (
+          <div className="flex items-center gap-2 mb-4 px-1">
+            <Sparkles size={14} className="text-indigo-400 flex-none" />
+            <p className="text-xs text-gray-400">O fundo é removido automaticamente ao carregar a foto</p>
+          </div>
+        )}
+
         {erro && <p className="text-red-500 text-sm mb-3">{erro}</p>}
 
         <button
           onClick={handleSalvar}
-          disabled={loading || !file}
+          disabled={loading || !file || processando}
           className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-semibold text-base disabled:opacity-50 transition-opacity"
         >
-          {loading ? 'Salvando...' : 'Salvar peça'}
+          {loading ? 'Salvando...' : processando ? 'Processando imagem...' : 'Salvar peça'}
         </button>
       </div>
     </div>
