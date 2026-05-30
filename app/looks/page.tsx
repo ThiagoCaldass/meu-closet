@@ -3,7 +3,8 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { getSupabase, Look, Roupa } from '@/lib/supabase'
-import { Trash2 } from 'lucide-react'
+import ModalTryOn from '@/components/ModalTryOn'
+import { Trash2, Sparkles } from 'lucide-react'
 
 interface LookComRoupas extends Look {
   sapato?: Roupa | null
@@ -16,6 +17,7 @@ interface LookComRoupas extends Look {
 export default function LooksPage() {
   const [looks, setLooks] = useState<LookComRoupas[]>([])
   const [loading, setLoading] = useState(true)
+  const [tryOn, setTryOn] = useState<LookComRoupas | null>(null)
 
   useEffect(() => { carregar() }, [])
 
@@ -30,10 +32,10 @@ export default function LooksPage() {
 
     const roupaIds = [
       ...new Set(
-        looksData.flatMap((l) => [
-          l.sapato_id, l.parte_baixo_id, l.parte_cima_id, l.corpo_inteiro_id, l.acessorio_id
-        ].filter(Boolean))
-      )
+        looksData.flatMap((l) =>
+          [l.sapato_id, l.parte_baixo_id, l.parte_cima_id, l.corpo_inteiro_id, l.acessorio_id].filter(Boolean)
+        )
+      ),
     ]
 
     const { data: roupasData } = roupaIds.length > 0
@@ -62,13 +64,17 @@ export default function LooksPage() {
   }
 
   const pecasDoLook = (look: LookComRoupas) =>
-    [look.acessorio, look.parte_cima, look.corpo_inteiro, look.parte_baixo, look.sapato].filter(Boolean) as Roupa[]
+    [look.acessorio, look.parte_cima, look.corpo_inteiro, look.parte_baixo, look.sapato].filter(
+      Boolean
+    ) as Roupa[]
 
   return (
     <div className="flex flex-col min-h-screen">
       <div className="px-4 pt-12 pb-4">
         <h1 className="text-xl font-bold">Meus Looks</h1>
-        <p className="text-sm text-gray-400 mt-1">{looks.length} look{looks.length !== 1 ? 's' : ''} salvos</p>
+        <p className="text-sm text-gray-400 mt-1">
+          {looks.length} look{looks.length !== 1 ? 's' : ''} salvos
+        </p>
       </div>
 
       {loading ? (
@@ -93,41 +99,69 @@ export default function LooksPage() {
                     <div
                       key={peca.id}
                       className="flex-1 aspect-square rounded-xl overflow-hidden min-w-0"
+                      style={{
+                        background:
+                          'repeating-conic-gradient(#f3f4f6 0% 25%, white 0% 50%) 0 0 / 10px 10px',
+                      }}
                     >
                       <Image
                         src={peca.imagem_url}
                         alt={peca.nome || ''}
                         width={80}
                         height={80}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
                       />
                     </div>
                   ))}
-                  {/* placeholder se tiver menos de 2 peças */}
-                  {pecas.length === 1 && (
-                    <div className="flex-1 rounded-xl bg-gray-200" />
-                  )}
+                  {pecas.length === 1 && <div className="flex-1 rounded-xl bg-gray-200" />}
                 </div>
 
-                {/* Nome e ações */}
-                <div className="flex items-center justify-between px-3 pb-3">
-                  <div>
-                    <p className="font-semibold text-sm">{look.nome}</p>
-                    <p className="text-xs text-gray-400">
-                      {look.modo === 'completo' ? 'Peças separadas' : 'Corpo inteiro'} · {pecas.length} peça{pecas.length !== 1 ? 's' : ''}
-                    </p>
+                {/* Nome, ações e botão try-on */}
+                <div className="px-3 pb-3 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-sm">{look.nome}</p>
+                      <p className="text-xs text-gray-400">
+                        {look.modo === 'completo' ? 'Peças separadas' : 'Corpo inteiro'} ·{' '}
+                        {pecas.length} peça{pecas.length !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => deletar(look)}
+                      className="p-2 text-red-400 transition-colors"
+                    >
+                      <Trash2 size={18} />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => deletar(look)}
-                    className="p-2 text-red-400 hover:text-red-600 transition-colors"
-                  >
-                    <Trash2 size={18} />
-                  </button>
+
+                  {/* Botão experimentar */}
+                  {pecas.length > 0 && (
+                    <button
+                      onClick={() => setTryOn(look)}
+                      className="w-full border border-indigo-200 bg-indigo-50 text-indigo-600 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5"
+                    >
+                      <Sparkles size={15} /> Experimentar este look
+                    </button>
+                  )}
                 </div>
               </div>
             )
           })}
         </div>
+      )}
+
+      {tryOn && (
+        <ModalTryOn
+          look={{
+            nome: tryOn.nome,
+            sapato: tryOn.sapato ?? null,
+            parte_baixo: tryOn.parte_baixo ?? null,
+            parte_cima: tryOn.parte_cima ?? null,
+            corpo_inteiro: tryOn.corpo_inteiro ?? null,
+            acessorio: tryOn.acessorio ?? null,
+          }}
+          onClose={() => setTryOn(null)}
+        />
       )}
     </div>
   )
