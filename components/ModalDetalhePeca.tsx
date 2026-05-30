@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Image from 'next/image'
-import { getSupabase, Roupa, CATEGORIAS } from '@/lib/supabase'
+import { getSupabase, Roupa, CATEGORIAS, Categoria } from '@/lib/supabase'
 import { X, Trash2, Check } from 'lucide-react'
 
 interface Props {
@@ -13,17 +13,18 @@ interface Props {
 
 export default function ModalDetalhePeca({ roupa, onClose, onDeleted, onUpdated }: Props) {
   const [nome, setNome] = useState(roupa.nome ?? '')
+  const [categoria, setCategoria] = useState<Categoria>(roupa.categoria)
   const [salvando, setSalvando] = useState(false)
   const [deletando, setDeletando] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const cat = CATEGORIAS.find((c) => c.value === roupa.categoria)
+  const mudou = nome !== (roupa.nome ?? '') || categoria !== roupa.categoria
 
-  const salvarNome = async () => {
+  const salvar = async () => {
     setSalvando(true)
     const { data, error } = await getSupabase()
       .from('roupas')
-      .update({ nome: nome.trim() || null })
+      .update({ nome: nome.trim() || null, categoria })
       .eq('id', roupa.id)
       .select()
       .single()
@@ -40,25 +41,20 @@ export default function ModalDetalhePeca({ roupa, onClose, onDeleted, onUpdated 
     onClose()
   }
 
-  const nomeMudou = nome !== (roupa.nome ?? '')
-
   return (
     <div className="fixed inset-0 bg-black/70 z-[70] flex items-end" onClick={onClose}>
       <div
-        className="bg-white w-full rounded-t-3xl max-h-[92vh] flex flex-col"
+        className="bg-white w-full rounded-t-3xl max-h-[92vh] flex flex-col overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Handle bar */}
-        <div className="flex justify-center pt-3 pb-1">
+        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
           <div className="w-10 h-1 bg-gray-200 rounded-full" />
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">{cat?.emoji}</span>
-            <span className="text-sm font-semibold text-gray-500">{cat?.label}</span>
-          </div>
+        <div className="flex items-center justify-between px-5 py-3 flex-shrink-0">
+          <span className="text-base font-bold">Editar peça</span>
           <button onClick={onClose} className="p-1 text-gray-400">
             <X size={22} />
           </button>
@@ -74,38 +70,60 @@ export default function ModalDetalhePeca({ roupa, onClose, onDeleted, onUpdated 
         >
           <Image
             src={roupa.imagem_url}
-            alt={roupa.nome || cat?.label || ''}
-            width={400}
-            height={400}
+            alt={roupa.nome || ''}
+            width={400} height={400}
             className="w-full h-full object-contain"
           />
         </div>
 
         {/* Nome */}
-        <div className="px-5 pt-4 pb-2">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Nome da peça (opcional)"
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-400"
-            />
-            {nomeMudou && (
+        <div className="px-5 pt-4 pb-3">
+          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Nome</label>
+          <input
+            type="text"
+            placeholder="Nome da peça (opcional)"
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-400"
+          />
+        </div>
+
+        {/* Categoria */}
+        <div className="px-5 pb-4">
+          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">Categoria</label>
+          <div className="grid grid-cols-3 gap-2">
+            {CATEGORIAS.map((cat) => (
               <button
-                onClick={salvarNome}
-                disabled={salvando}
-                className="px-4 bg-indigo-600 text-white rounded-xl font-medium text-sm disabled:opacity-50 flex items-center gap-1"
+                key={cat.value}
+                onClick={() => setCategoria(cat.value)}
+                className={`flex flex-col items-center py-2.5 rounded-xl border-2 text-xs font-medium transition-all ${
+                  categoria === cat.value
+                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                    : 'border-gray-200 text-gray-500'
+                }`}
               >
-                <Check size={16} />
-                {salvando ? '...' : 'Salvar'}
+                <span className="text-xl mb-0.5">{cat.emoji}</span>
+                <span className="text-center leading-tight">{cat.label}</span>
               </button>
-            )}
+            ))}
           </div>
         </div>
 
-        {/* Botão excluir */}
-        <div className="px-5 pb-10 pt-2">
+        {/* Salvar alterações */}
+        {mudou && (
+          <div className="px-5 pb-3">
+            <button
+              onClick={salvar}
+              disabled={salvando}
+              className="w-full bg-indigo-600 text-white py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <Check size={17} /> {salvando ? 'Salvando...' : 'Salvar alterações'}
+            </button>
+          </div>
+        )}
+
+        {/* Excluir */}
+        <div className="px-5 pb-10 pt-1">
           {!confirmDelete ? (
             <button
               onClick={() => setConfirmDelete(true)}
