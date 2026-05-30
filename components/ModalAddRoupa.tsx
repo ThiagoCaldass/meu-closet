@@ -66,6 +66,7 @@ export default function ModalAddRoupa({ onClose, onAdded }: Props) {
   const [status, setStatus] = useState<StatusProcessamento>('idle')
   const [erro, setErro] = useState('')
   const [editando, setEditando] = useState(false)
+  const [previewOriginal, setPreviewOriginal] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const processando = status === 'extraindo' || status === 'fundo'
@@ -73,7 +74,9 @@ export default function ModalAddRoupa({ onClose, onAdded }: Props) {
   const handleFile = async (f: File) => {
     setErro('')
     setStatus('extraindo')
-    setPreview(URL.createObjectURL(f))
+    const urlOriginal = URL.createObjectURL(f)
+    setPreviewOriginal(urlOriginal)   // guarda antes de qualquer processamento
+    setPreview(urlOriginal)
     setFile(f)
 
     let processado: 'ia' | 'fundo' | 'original' = 'original'
@@ -307,6 +310,7 @@ export default function ModalAddRoupa({ onClose, onAdded }: Props) {
     {editando && preview && (
       <EditorPincel
         imagemUrl={preview}
+        imagemOriginalUrl={previewOriginal ?? undefined}
         onConfirmar={(blob) => {
           const pf = new File([blob], 'editado.png', { type: 'image/png' })
           setFile(pf)

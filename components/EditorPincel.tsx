@@ -12,11 +12,12 @@ interface Tracado {
 
 interface Props {
   imagemUrl: string
+  imagemOriginalUrl?: string  // foto antes da IA — restaurar lê daqui
   onConfirmar: (blob: Blob) => void
   onCancelar: () => void
 }
 
-export default function EditorPincel({ imagemUrl, onConfirmar, onCancelar }: Props) {
+export default function EditorPincel({ imagemUrl, imagemOriginalUrl, onConfirmar, onCancelar }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const origCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
@@ -107,28 +108,41 @@ export default function EditorPincel({ imagemUrl, onConfirmar, onCancelar }: Pro
     }
   }
 
-  // Carrega imagem e inicializa ambos os canvases
+  // Carrega imagem processada (canvas principal) e original (referência do restaurar)
   useEffect(() => {
-    const img = new window.Image()
-    img.onload = () => {
-      imgRef.current = img
+    const carregarImg = (url: string): Promise<HTMLImageElement> =>
+      new Promise(resolve => {
+        const i = new window.Image()
+        i.onload = () => resolve(i)
+        i.src = url
+      })
 
-      // Canvas original (referência imutável para o pincel de restaurar)
-      const orig = document.createElement('canvas')
-      orig.width = img.naturalWidth
-      orig.height = img.naturalHeight
-      orig.getContext('2d')!.drawImage(img, 0, 0)
-      origCanvasRef.current = orig
+    const init = async () => {
+      const img = await carregarImg(imagemUrl)
+      imgRef.current = img
 
       const canvas = canvasRef.current
       if (!canvas) return
       canvas.width = img.naturalWidth
       canvas.height = img.naturalHeight
       canvas.getContext('2d')!.drawImage(img, 0, 0)
+
+      // Canvas de referência para o restaurar:
+      // usa a foto original se fornecida, senão usa a própria imagem processada
+      const origSrc = imagemOriginalUrl ?? imagemUrl
+      const origImg = origSrc === imagemUrl ? img : await carregarImg(origSrc)
+      const orig = document.createElement('canvas')
+      orig.width = canvas.width
+      orig.height = canvas.height
+      // Escala a imagem original para a resolução da imagem processada
+      orig.getContext('2d')!.drawImage(origImg, 0, 0, orig.width, orig.height)
+      origCanvasRef.current = orig
+
       setPronto(true)
     }
-    img.src = imagemUrl
-  }, [imagemUrl])
+
+    init()
+  }, [imagemUrl, imagemOriginalUrl])
 
   // Touch events com passive:false para prevenir scroll durante desenho
   useEffect(() => {
