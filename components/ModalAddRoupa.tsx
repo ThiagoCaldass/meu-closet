@@ -2,14 +2,14 @@
 import { useState, useRef } from 'react'
 import Image from 'next/image'
 import { getSupabase, CATEGORIAS, Categoria } from '@/lib/supabase'
-import { X, Camera, Upload, Sparkles } from 'lucide-react'
+import { X, Camera, Upload, Sparkles, ImageOff } from 'lucide-react'
 
 interface Props {
   onClose: () => void
   onAdded: () => void
 }
 
-// Aplica máscaras de segmentação de roupa via Canvas, tornando o resto transparente
+// Aplica máscaras de segmentação de roupa via Canvas
 async function aplicarMascaras(
   imagem: File,
   mascaras: Array<{ mask: string }>
@@ -26,14 +26,17 @@ async function aplicarMascaras(
 
   const mascaraFinal = new Uint8Array(width * height).fill(0)
 
-  for (const { mask: b64 } of mascaras) {
-    const maskBlob = await fetch(`data:image/png;base64,${b64}`).then((r) => r.blob())
+  for (const { mask } of mascaras) {
+    // Aceita base64 puro ou data URL completo
+    const dataUrl = mask.startsWith('data:') ? mask : `data:image/png;base64,${mask}`
+    const maskBlob = await fetch(dataUrl).then((r) => r.blob())
     const maskBitmap = await createImageBitmap(maskBlob)
 
     const maskCanvas = document.createElement('canvas')
     maskCanvas.width = width
     maskCanvas.height = height
     const maskCtx = maskCanvas.getContext('2d')!
+    // Escala a máscara para o tamanho da imagem original
     maskCtx.drawImage(maskBitmap, 0, 0, width, height)
     const dadosMask = maskCtx.getImageData(0, 0, width, height)
 
@@ -42,7 +45,7 @@ async function aplicarMascaras(
     }
   }
 
-  // Pixels fora da roupa → transparentes
+  // Pixels fora das máscaras ficam transparentes
   for (let i = 0; i < dadosImg.data.length / 4; i++) {
     if (mascaraFinal[i] === 0) dadosImg.data[i * 4 + 3] = 0
   }
@@ -51,59 +54,69 @@ async function aplicarMascaras(
   return new Promise((resolve) => canvas.toBlob(resolve as BlobCallback, 'image/png', 0.9))
 }
 
+type StatusProcessamento = 'idle' | 'extraindo' | 'fundo' | 'pronto_ia' | 'pronto_fundo' | 'original'
+
 export default function ModalAddRoupa({ onClose, onAdded }: Props) {
   const [categoria, setCategoria] = useState<Categoria>('parte_cima')
   const [nome, setNome] = useState('')
   const [preview, setPreview] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
-  const [processando, setProcessando] = useState(false)
-  const [msgProcessando, setMsgProcessando] = useState('')
+  const [status, setStatus] = useState<StatusProcessamento>('idle')
   const [erro, setErro] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const processando = status === 'extraindo' || status === 'fundo'
+
   const handleFile = async (f: File) => {
     setErro('')
+    setStatus('extraindo')
     setPreview(URL.createObjectURL(f))
     setFile(f)
-    setProcessando(true)
 
-    let processado = false
+    let processado: 'ia' | 'fundo' | 'original' = 'original'
 
-    // Tenta segmentação de roupa (remove pessoa + fundo) via API HF
+    // 1ª tentativa: extração de roupa via HF (remove pessoa + fundo)
     try {
-      setMsgProcessando('Extraindo a roupa...')
       const form = new FormData()
       form.append('imagem', f)
       const res = await fetch('/api/segmentar', { method: 'POST', body: form })
-      const json = await res.json()
 
-      if (json.mascaras && json.mascaras.length > 0) {
-        const blob = await aplicarMascaras(f, json.mascaras)
-        const pf = new File([blob], f.name.replace(/\.[^.]+$/, '.png'), { type: 'image/png' })
-        setFile(pf)
-        setPreview(URL.createObjectURL(pf))
-        processado = true
+      if (res.ok) {
+        const json = await res.json()
+
+        if (json.mascaras && json.mascaras.length > 0) {
+          const blob = await aplicarMascaras(f, json.mascaras)
+          const pf = new File([blob], f.name.replace(/\.[^.]+$/, '.png'), { type: 'image/png' })
+          setFile(pf)
+          setPreview(URL.createObjectURL(pf))
+          processado = 'ia'
+        }
       }
     } catch {
-      // prossegue para o fallback
+      // prossegue para fallback
     }
 
-    // Fallback: remoção de fundo comum (@imgly)
-    if (!processado) {
+    // 2ª tentativa: remoção de fundo via @imgly (mantém pessoa se houver)
+    if (processado === 'original') {
       try {
-        setMsgProcessando('Removendo fundo...')
+        setStatus('fundo')
         const { removeBackground } = await import('@imgly/background-removal')
         const blob = await removeBackground(f, { output: { format: 'image/png', quality: 0.9 } })
         const pf = new File([blob], f.name.replace(/\.[^.]+$/, '.png'), { type: 'image/png' })
         setFile(pf)
         setPreview(URL.createObjectURL(pf))
+        processado = 'fundo'
       } catch {
-        // mantém a imagem original se tudo falhar
+        // mantém original
       }
     }
 
-    setProcessando(false)
+    setStatus(
+      processado === 'ia' ? 'pronto_ia'
+      : processado === 'fundo' ? 'pronto_fundo'
+      : 'original'
+    )
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -138,6 +151,12 @@ export default function ModalAddRoupa({ onClose, onAdded }: Props) {
     onClose()
   }
 
+  const badgeInfo = {
+    pronto_ia: { texto: 'Pessoa removida pela IA', cor: 'bg-indigo-600/90' },
+    pronto_fundo: { texto: 'Fundo removido', cor: 'bg-gray-600/80' },
+    original: { texto: 'Imagem original', cor: 'bg-gray-400/80' },
+  }
+
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-end" onClick={onClose}>
       <div
@@ -146,12 +165,10 @@ export default function ModalAddRoupa({ onClose, onAdded }: Props) {
       >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-lg font-bold">Adicionar peça</h2>
-          <button onClick={onClose} className="p-1">
-            <X size={22} />
-          </button>
+          <button onClick={onClose} className="p-1"><X size={22} /></button>
         </div>
 
-        {/* Seletor de categoria */}
+        {/* Categoria */}
         <div className="grid grid-cols-3 gap-2 mb-5">
           {CATEGORIAS.map((cat) => (
             <button
@@ -169,7 +186,7 @@ export default function ModalAddRoupa({ onClose, onAdded }: Props) {
           ))}
         </div>
 
-        {/* Input nome */}
+        {/* Nome */}
         <input
           type="text"
           placeholder="Nome da peça (opcional)"
@@ -202,51 +219,65 @@ export default function ModalAddRoupa({ onClose, onAdded }: Props) {
               />
             </div>
 
+            {/* Loading overlay */}
             {processando && (
-              <div className="absolute inset-0 bg-white/80 rounded-2xl flex flex-col items-center justify-center gap-2">
+              <div className="absolute inset-0 bg-white/85 rounded-2xl flex flex-col items-center justify-center gap-2">
                 <Sparkles size={28} className="text-indigo-500 animate-pulse" />
-                <p className="text-sm font-medium text-indigo-600">{msgProcessando}</p>
+                <p className="text-sm font-medium text-indigo-600">
+                  {status === 'extraindo' ? 'Extraindo a roupa...' : 'Removendo fundo...'}
+                </p>
                 <p className="text-xs text-gray-400">Isso leva alguns segundos</p>
               </div>
             )}
 
-            {!processando && (
+            {/* Badge de resultado */}
+            {!processando && status !== 'idle' && badgeInfo[status as keyof typeof badgeInfo] && (
               <>
                 <button
-                  onClick={() => { setPreview(null); setFile(null) }}
+                  onClick={() => { setPreview(null); setFile(null); setStatus('idle') }}
                   className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1"
                 >
                   <X size={16} />
                 </button>
-                <div className="absolute bottom-2 left-2 bg-indigo-600/90 text-white text-xs px-2 py-1 rounded-lg flex items-center gap-1">
-                  <Sparkles size={11} /> Processado
+                <div className={`absolute bottom-2 left-2 text-white text-xs px-2 py-1 rounded-lg flex items-center gap-1 ${badgeInfo[status as keyof typeof badgeInfo].cor}`}>
+                  <Sparkles size={11} />
+                  {badgeInfo[status as keyof typeof badgeInfo].texto}
                 </div>
               </>
             )}
           </div>
         ) : (
-          <div className="flex gap-3 mb-4">
-            <button
-              onClick={() => { if (inputRef.current) { inputRef.current.removeAttribute('capture'); inputRef.current.click() } }}
-              className="flex-1 border-2 border-dashed border-gray-300 rounded-2xl py-8 flex flex-col items-center gap-2 text-gray-400"
-            >
-              <Upload size={24} />
-              <span className="text-sm">Galeria</span>
-            </button>
-            <button
-              onClick={() => { if (inputRef.current) { inputRef.current.setAttribute('capture', 'environment'); inputRef.current.click() } }}
-              className="flex-1 border-2 border-dashed border-gray-300 rounded-2xl py-8 flex flex-col items-center gap-2 text-gray-400"
-            >
-              <Camera size={24} />
-              <span className="text-sm">Câmera</span>
-            </button>
-          </div>
+          <>
+            <div className="flex gap-3 mb-3">
+              <button
+                onClick={() => { if (inputRef.current) { inputRef.current.removeAttribute('capture'); inputRef.current.click() } }}
+                className="flex-1 border-2 border-dashed border-gray-300 rounded-2xl py-8 flex flex-col items-center gap-2 text-gray-400"
+              >
+                <Upload size={24} /><span className="text-sm">Galeria</span>
+              </button>
+              <button
+                onClick={() => { if (inputRef.current) { inputRef.current.setAttribute('capture', 'environment'); inputRef.current.click() } }}
+                className="flex-1 border-2 border-dashed border-gray-300 rounded-2xl py-8 flex flex-col items-center gap-2 text-gray-400"
+              >
+                <Camera size={24} /><span className="text-sm">Câmera</span>
+              </button>
+            </div>
+            <div className="flex items-start gap-2 mb-4 px-1">
+              <Sparkles size={14} className="text-indigo-400 flex-none mt-0.5" />
+              <p className="text-xs text-gray-400">
+                Roupa vestida em alguém? A IA tenta remover a pessoa automaticamente. Se não conseguir, pelo menos remove o fundo.
+              </p>
+            </div>
+          </>
         )}
 
-        {!preview && (
-          <div className="flex items-center gap-2 mb-4 px-1">
-            <Sparkles size={14} className="text-indigo-400 flex-none" />
-            <p className="text-xs text-gray-400">Roupa vestida? A IA remove a pessoa automaticamente</p>
+        {/* Aviso se ficou com pessoa */}
+        {status === 'pronto_fundo' && (
+          <div className="flex items-center gap-2 mb-3 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+            <ImageOff size={15} className="text-amber-500 flex-none" />
+            <p className="text-xs text-amber-700">
+              Não consegui remover a pessoa. Tente uma foto da roupa avulsa (no cabide ou deitada).
+            </p>
           </div>
         )}
 
@@ -257,7 +288,7 @@ export default function ModalAddRoupa({ onClose, onAdded }: Props) {
           disabled={loading || !file || processando}
           className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-semibold text-base disabled:opacity-50 transition-opacity"
         >
-          {loading ? 'Salvando...' : processando ? msgProcessando : 'Salvar peça'}
+          {loading ? 'Salvando...' : processando ? 'Processando...' : 'Salvar peça'}
         </button>
       </div>
     </div>

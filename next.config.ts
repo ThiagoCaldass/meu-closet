@@ -21,7 +21,7 @@ const nextConfig: NextConfig = {
   },
   turbopack: {},
   // permite que o @gradio/client rode no Node.js do servidor sem ser empacotado
-  serverExternalPackages: ['@gradio/client'],
+  serverExternalPackages: ['@gradio/client', '@huggingface/inference'],
 }
 
 export default nextConfig
