@@ -38,6 +38,18 @@ export default function EditorPincel({ imagemUrl, imagemOriginalUrl, onConfirmar
   useEffect(() => { tamanhoRef.current = tamanho }, [tamanho])
   useEffect(() => { modoRef.current = modo }, [modo])
 
+  // Interpola entre dois pontos e restaura ao longo da linha — elimina o pontilhado
+  const restaurarLinha = (canvas: HTMLCanvasElement, x1: number, y1: number, x2: number, y2: number) => {
+    const dist = Math.hypot(x2 - x1, y2 - y1)
+    // passo de no máximo 30% do raio para garantir sobreposição e traço contínuo
+    const passo = Math.max(1, tamanhoRef.current * 0.3)
+    const passos = Math.max(1, Math.ceil(dist / passo))
+    for (let i = 0; i <= passos; i++) {
+      const t = i / passos
+      restaurarPixels(canvas, x1 + (x2 - x1) * t, y1 + (y2 - y1) * t)
+    }
+  }
+
   // Restaura pixels a partir do canvas original (para o pincel de restaurar)
   const restaurarPixels = (canvas: HTMLCanvasElement, x: number, y: number) => {
     const orig = origCanvasRef.current
@@ -102,8 +114,14 @@ export default function EditorPincel({ imagemUrl, imagemOriginalUrl, onConfirmar
         }
         ctx.globalCompositeOperation = 'source-over'
       } else {
-        // restaurar: pixel a pixel a partir do canvas original
-        for (const pt of tr.pontos) restaurarPixels(canvas, pt.x, pt.y)
+        // restaurar: interpolado para traço contínuo
+        if (tr.pontos.length === 1) {
+          restaurarPixels(canvas, tr.pontos[0].x, tr.pontos[0].y)
+        } else {
+          for (let j = 1; j < tr.pontos.length; j++) {
+            restaurarLinha(canvas, tr.pontos[j - 1].x, tr.pontos[j - 1].y, tr.pontos[j].x, tr.pontos[j].y)
+          }
+        }
       }
     }
   }
@@ -168,7 +186,12 @@ export default function EditorPincel({ imagemUrl, imagemOriginalUrl, onConfirmar
     }
 
     const restaurar = (x: number, y: number) => {
-      restaurarPixels(canvas, x, y)
+      const prev = tracadoAtual.current[tracadoAtual.current.length - 1]
+      if (prev) {
+        restaurarLinha(canvas, prev.x, prev.y, x, y)
+      } else {
+        restaurarPixels(canvas, x, y)
+      }
       tracadoAtual.current.push({ x, y })
     }
 
@@ -246,7 +269,13 @@ export default function EditorPincel({ imagemUrl, imagemOriginalUrl, onConfirmar
 
   const desenharMouse = (x: number, y: number) => {
     if (modoRef.current === 'apagar') apagarMouse(x, y)
-    else { restaurarPixels(canvasRef.current!, x, y); tracadoAtual.current.push({ x, y }) }
+    else {
+      const canvas = canvasRef.current!
+      const prev = tracadoAtual.current[tracadoAtual.current.length - 1]
+      if (prev) restaurarLinha(canvas, prev.x, prev.y, x, y)
+      else restaurarPixels(canvas, x, y)
+      tracadoAtual.current.push({ x, y })
+    }
   }
 
   const finalizarMouse = () => {
