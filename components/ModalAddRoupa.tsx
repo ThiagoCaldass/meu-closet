@@ -2,6 +2,7 @@
 import { useState, useRef } from 'react'
 import Image from 'next/image'
 import { getSupabase, CATEGORIAS, Categoria } from '@/lib/supabase'
+import { getUsuarioAtual } from '@/lib/supabase-user'
 import { X, Camera, Upload, Sparkles, ImageOff, Eraser } from 'lucide-react'
 import EditorPincel from '@/components/EditorPincel'
 
@@ -144,10 +145,14 @@ export default function ModalAddRoupa({ onClose, onAdded }: Props) {
 
     const { data: { publicUrl } } = getSupabase().storage.from('roupas').getPublicUrl(path)
 
+    const usuario = getUsuarioAtual()
+    if (!usuario) { setErro('Usuário não selecionado'); setLoading(false); return }
+
     const { error: dbError } = await getSupabase().from('roupas').insert({
       categoria,
       nome: nome.trim() || null,
       imagem_url: publicUrl,
+      usuario,
     })
 
     if (dbError) { setErro('Erro ao salvar'); setLoading(false); return }

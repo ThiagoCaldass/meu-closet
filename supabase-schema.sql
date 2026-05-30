@@ -76,3 +76,30 @@ create policy "allow read montagens"
 create policy "allow delete montagens"
   on storage.objects for delete
   using (bucket_id = 'montagens');
+
+-- ============================================================
+-- MIGRATION v3 — multi-usuário (Yasmim e Thiago)
+-- ============================================================
+
+-- 1. Adiciona coluna usuario em roupas
+alter table public.roupas add column usuario text not null default 'yasmim';
+alter table public.roupas add constraint roupas_usuario_check check (usuario in ('yasmim', 'thiago'));
+
+-- 2. Adiciona coluna usuario em looks
+alter table public.looks add column usuario text not null default 'yasmim';
+alter table public.looks add constraint looks_usuario_check check (usuario in ('yasmim', 'thiago'));
+
+-- 3. Adiciona coluna usuario em montagens
+alter table public.montagens add column usuario text not null default 'yasmim';
+alter table public.montagens add constraint montagens_usuario_check check (usuario in ('yasmim', 'thiago'));
+
+-- RLS: permite leitura/escrita sem autenticação (app pessoal)
+-- O filtro por usuário é feito no código (JavaScript) via .eq('usuario', usuario)
+alter table public.roupas drop policy if exists "allow all roupas";
+create policy "allow all roupas" on public.roupas for all using (true) with check (true);
+
+alter table public.looks drop policy if exists "allow all looks";
+create policy "allow all looks" on public.looks for all using (true) with check (true);
+
+alter table public.montagens drop policy if exists "allow all montagens";
+create policy "allow all montagens" on public.montagens for all using (true) with check (true);

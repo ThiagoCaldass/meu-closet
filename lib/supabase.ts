@@ -20,6 +20,7 @@ export interface Roupa {
   nome: string | null
   categoria: Categoria
   imagem_url: string
+  usuario: string
   created_at: string
 }
 
@@ -32,6 +33,7 @@ export interface Look {
   parte_cima_id: string | null
   corpo_inteiro_id: string | null
   acessorio_id: string | null
+  usuario: string
   created_at: string
 }
 
@@ -39,8 +41,10 @@ export interface Montagem {
   id: string
   nome: string | null
   imagem_url: string
+  usuario: string
   created_at: string
 }
+
 
 export const CATEGORIAS: { value: Categoria; label: string; emoji: string }[] = [
   { value: 'parte_cima', label: 'Parte de Cima', emoji: '👕' },

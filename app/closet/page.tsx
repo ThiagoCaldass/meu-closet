@@ -2,7 +2,9 @@
 export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
-import { getSupabase, Roupa, CATEGORIAS, Categoria } from '@/lib/supabase'
+import { Roupa, CATEGORIAS, Categoria } from '@/lib/supabase'
+import { useSupabaseUser } from '@/lib/use-supabase-user'
+import { getUsuarioAtual } from '@/lib/supabase-user'
 import ModalAddRoupa from '@/components/ModalAddRoupa'
 import ModalDetalhePeca from '@/components/ModalDetalhePeca'
 import { Plus } from 'lucide-react'
@@ -12,11 +14,14 @@ export default function ClosetPage() {
   const [categoriaAtiva, setCategoriaAtiva] = useState<Categoria>('parte_cima')
   const [modalAdd, setModalAdd] = useState(false)
   const [detalhe, setDetalhe] = useState<Roupa | null>(null)
+  const supabase = useSupabaseUser()
 
-  useEffect(() => { carregar() }, [])
+  useEffect(() => { carregar() }, [supabase])
 
   const carregar = async () => {
-    const { data } = await getSupabase().from('roupas').select('*').order('created_at', { ascending: false })
+    const usuario = getUsuarioAtual()
+    if (!usuario) return
+    const { data } = await supabase.from('roupas').select('*').eq('usuario', usuario).order('created_at', { ascending: false })
     setRoupas(data || [])
   }
 

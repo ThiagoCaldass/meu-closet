@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import BottomNav from '@/components/BottomNav'
+import LayoutClient from '@/components/LayoutClient'
+import { UserProvider } from '@/lib/user-context'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -21,12 +23,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR">
       <body className={`${inter.className} bg-gray-50 min-h-screen`}>
-        <main className="pb-28 max-w-md mx-auto min-h-screen bg-white">
-          {children}
-        </main>
-        <div className="max-w-md mx-auto">
-          <BottomNav />
-        </div>
+        <UserProvider>
+          <LayoutClient>
+            {children}
+          </LayoutClient>
+        </UserProvider>
       </body>
     </html>
   )
