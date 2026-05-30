@@ -44,7 +44,7 @@ export default function ModalSalvarLook({ selecao, onClose, onSalvo }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-end" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 z-[70] flex items-end" onClick={onClose}>
       <div
         className="bg-white w-full rounded-t-3xl p-6 pb-10"
         onClick={(e) => e.stopPropagation()}

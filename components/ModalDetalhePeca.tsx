@@ -43,7 +43,7 @@ export default function ModalDetalhePeca({ roupa, onClose, onDeleted, onUpdated 
   const nomeMudou = nome !== (roupa.nome ?? '')
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-end" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/70 z-[70] flex items-end" onClick={onClose}>
       <div
         className="bg-white w-full rounded-t-3xl max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}

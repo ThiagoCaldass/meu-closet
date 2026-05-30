@@ -74,7 +74,7 @@ export default function ModalTryOn({ look, onClose }: Props) {
   const podeGerar = pecaSelecionada && pessoaFile && !gerando
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-end" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/70 z-[70] flex items-end" onClick={onClose}>
       <div
         className="bg-white w-full rounded-t-3xl max-h-[94vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
