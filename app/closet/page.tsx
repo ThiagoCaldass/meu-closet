@@ -58,7 +58,7 @@ export default function ClosetPage() {
       </div>
 
       {/* Grid de roupas */}
-      <div className="flex-1 overflow-y-auto px-4">
+      <div className="flex-1 overflow-y-auto px-4 pb-24">
         {filtradas.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-gray-400">
             <span className="text-5xl mb-3">{catAtual?.emoji}</span>

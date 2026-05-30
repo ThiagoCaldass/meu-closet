@@ -21,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR">
       <body className={`${inter.className} bg-gray-50 min-h-screen`}>
-        <main className="pb-20 max-w-md mx-auto min-h-screen bg-white">
+        <main className="pb-28 max-w-md mx-auto min-h-screen bg-white">
           {children}
         </main>
         <div className="max-w-md mx-auto">
