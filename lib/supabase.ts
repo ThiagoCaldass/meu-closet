@@ -12,7 +12,7 @@ export function getSupabase(): SupabaseClient {
   return _client
 }
 
-export type Categoria = 'sapato' | 'parte_baixo' | 'parte_cima' | 'corpo_inteiro' | 'acessorio'
+export type Categoria = 'sapato' | 'parte_baixo' | 'parte_cima' | 'corpo_inteiro' | 'acessorio' | 'adesivo'
 export type ModoLook = 'completo' | 'corpo_inteiro'
 
 export interface Roupa {
@@ -35,10 +35,18 @@ export interface Look {
   created_at: string
 }
 
+export interface Montagem {
+  id: string
+  nome: string | null
+  imagem_url: string
+  created_at: string
+}
+
 export const CATEGORIAS: { value: Categoria; label: string; emoji: string }[] = [
   { value: 'parte_cima', label: 'Parte de Cima', emoji: '👕' },
   { value: 'parte_baixo', label: 'Parte de Baixo', emoji: '👖' },
   { value: 'corpo_inteiro', label: 'Corpo Inteiro', emoji: '👗' },
   { value: 'sapato', label: 'Sapatos', emoji: '👟' },
   { value: 'acessorio', label: 'Acessórios', emoji: '👜' },
+  { value: 'adesivo', label: 'Adesivos', emoji: '🏷️' },
 ]

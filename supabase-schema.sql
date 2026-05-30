@@ -42,3 +42,37 @@ create policy "allow read roupas"
 create policy "allow delete roupas"
   on storage.objects for delete
   using (bucket_id = 'roupas');
+
+-- ============================================================
+-- MIGRATION v2 — rodar no SQL Editor do Supabase
+-- ============================================================
+
+-- 1. Adiciona categoria 'adesivo' à constraint
+alter table public.roupas drop constraint if exists roupas_categoria_check;
+alter table public.roupas add constraint roupas_categoria_check
+  check (categoria in ('sapato', 'parte_baixo', 'parte_cima', 'corpo_inteiro', 'acessorio', 'adesivo'));
+
+-- 2. Tabela de montagens
+create table if not exists public.montagens (
+  id uuid default gen_random_uuid() primary key,
+  nome text,
+  imagem_url text not null,
+  created_at timestamp with time zone default now()
+);
+alter table public.montagens enable row level security;
+create policy "allow all montagens" on public.montagens for all using (true) with check (true);
+
+-- 3. Storage bucket para montagens
+insert into storage.buckets (id, name, public) values ('montagens', 'montagens', true) on conflict do nothing;
+
+create policy "allow upload montagens"
+  on storage.objects for insert
+  with check (bucket_id = 'montagens');
+
+create policy "allow read montagens"
+  on storage.objects for select
+  using (bucket_id = 'montagens');
+
+create policy "allow delete montagens"
+  on storage.objects for delete
+  using (bucket_id = 'montagens');
