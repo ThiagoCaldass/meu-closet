@@ -62,7 +62,7 @@ export default function EditorPincel({ imagemUrl, imagemOriginalUrl, onConfirmar
     lupaEl.style.top = `${ly}px`
     lupaEl.style.display = 'block'
 
-    const ZOOM = 3.5
+    const ZOOM = 2
     const ctx = lupaCanvas.getContext('2d')!
 
     // Fundo quadriculado para visualizar transparência
