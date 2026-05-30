@@ -21,6 +21,10 @@ export default function EditorPincel({ imagemUrl, imagemOriginalUrl, onConfirmar
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const origCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
+  const canvasContainerRef = useRef<HTMLDivElement>(null)
+  const lupaRef = useRef<HTMLDivElement>(null)
+  const lupaCanvasRef = useRef<HTMLCanvasElement>(null)
+  const LUPA_R = 65
 
   const desenhando = useRef(false)
   const tracadoAtual = useRef<Array<{ x: number; y: number }>>([])
@@ -37,6 +41,71 @@ export default function EditorPincel({ imagemUrl, imagemOriginalUrl, onConfirmar
 
   useEffect(() => { tamanhoRef.current = tamanho }, [tamanho])
   useEffect(() => { modoRef.current = modo }, [modo])
+
+  // Mostra a lupa ampliada acima do dedo
+  const atualizarLupa = (clientX: number, clientY: number) => {
+    const lupaEl = lupaRef.current
+    const lupaCanvas = lupaCanvasRef.current
+    const mainCanvas = canvasRef.current
+    const container = canvasContainerRef.current
+    if (!lupaEl || !lupaCanvas || !mainCanvas || !container) return
+
+    const D = LUPA_R * 2
+    const containerRect = container.getBoundingClientRect()
+    const sx = clientX - containerRect.left
+    const sy = clientY - containerRect.top
+
+    // Posiciona acima do dedo, respeitando bordas
+    const lx = Math.max(0, Math.min(containerRect.width - D, sx - LUPA_R))
+    const ly = Math.max(0, Math.min(containerRect.height - D, sy - LUPA_R - 160))
+    lupaEl.style.left = `${lx}px`
+    lupaEl.style.top = `${ly}px`
+    lupaEl.style.display = 'block'
+
+    const ZOOM = 3.5
+    const ctx = lupaCanvas.getContext('2d')!
+
+    // Fundo quadriculado para visualizar transparência
+    for (let py = 0; py < D; py += 10) {
+      for (let px = 0; px < D; px += 10) {
+        ctx.fillStyle = ((Math.floor(px / 10) + Math.floor(py / 10)) % 2 === 0) ? '#e5e7eb' : '#ffffff'
+        ctx.fillRect(px, py, 10, 10)
+      }
+    }
+
+    // Corta em círculo e desenha o canvas ampliado
+    const mainRect = mainCanvas.getBoundingClientRect()
+    const cx = (clientX - mainRect.left) * (mainCanvas.width / mainRect.width)
+    const cy = (clientY - mainRect.top) * (mainCanvas.height / mainRect.height)
+    const srcSize = D / ZOOM
+
+    ctx.save()
+    ctx.beginPath()
+    ctx.arc(LUPA_R, LUPA_R, LUPA_R, 0, Math.PI * 2)
+    ctx.clip()
+    ctx.drawImage(mainCanvas, cx - srcSize / 2, cy - srcSize / 2, srcSize, srcSize, 0, 0, D, D)
+    ctx.restore()
+
+    // Mira central
+    ctx.strokeStyle = 'rgba(220, 38, 38, 0.85)'
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.moveTo(LUPA_R - 10, LUPA_R); ctx.lineTo(LUPA_R + 10, LUPA_R)
+    ctx.moveTo(LUPA_R, LUPA_R - 10); ctx.lineTo(LUPA_R, LUPA_R + 10)
+    ctx.stroke()
+
+    // Anel externo
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)'
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.arc(LUPA_R, LUPA_R, LUPA_R - 2, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+
+  const esconderLupa = () => {
+    const lupaEl = lupaRef.current
+    if (lupaEl) lupaEl.style.display = 'none'
+  }
 
   // Interpola entre dois pontos e restaura ao longo da linha — elimina o pontilhado
   const restaurarLinha = (canvas: HTMLCanvasElement, x1: number, y1: number, x2: number, y2: number) => {
@@ -228,16 +297,20 @@ export default function EditorPincel({ imagemUrl, imagemOriginalUrl, onConfirmar
       e.preventDefault()
       desenhando.current = true
       tracadoAtual.current = []
-      const { x, y } = coords(e.touches[0])
+      const t = e.touches[0]
+      const { x, y } = coords(t)
       desenhar(x, y)
+      atualizarLupa(t.clientX, t.clientY)
     }
     const onMove = (e: TouchEvent) => {
       e.preventDefault()
       if (!desenhando.current) return
-      const { x, y } = coords(e.touches[0])
+      const t = e.touches[0]
+      const { x, y } = coords(t)
       desenhar(x, y)
+      atualizarLupa(t.clientX, t.clientY)
     }
-    const onEnd = () => finalizar()
+    const onEnd = () => { finalizar(); esconderLupa() }
 
     canvas.addEventListener('touchstart', onStart, { passive: false })
     canvas.addEventListener('touchmove', onMove, { passive: false })
@@ -317,7 +390,8 @@ export default function EditorPincel({ imagemUrl, imagemOriginalUrl, onConfirmar
 
       {/* Canvas */}
       <div
-        className="flex-1 overflow-hidden flex items-center justify-center"
+        ref={canvasContainerRef}
+        className="flex-1 overflow-hidden flex items-center justify-center relative"
         style={{ background: 'repeating-conic-gradient(#2a2a2a 0% 25%, #1a1a1a 0% 50%) 0 0 / 20px 20px' }}
       >
         {!pronto && <p className="text-gray-400 text-sm">Carregando...</p>}
@@ -325,11 +399,19 @@ export default function EditorPincel({ imagemUrl, imagemOriginalUrl, onConfirmar
           ref={canvasRef}
           className={`max-w-full max-h-full ${!pronto ? 'hidden' : ''}`}
           style={{ cursor: modo === 'apagar' ? 'cell' : 'crosshair', touchAction: 'none' }}
-          onMouseDown={e => { desenhando.current = true; tracadoAtual.current = []; const { x, y } = mouseCoords(e); desenharMouse(x, y) }}
-          onMouseMove={e => { if (!desenhando.current) return; const { x, y } = mouseCoords(e); desenharMouse(x, y) }}
-          onMouseUp={finalizarMouse}
-          onMouseLeave={finalizarMouse}
+          onMouseDown={e => { desenhando.current = true; tracadoAtual.current = []; const { x, y } = mouseCoords(e); desenharMouse(x, y); atualizarLupa(e.clientX, e.clientY) }}
+          onMouseMove={e => { if (!desenhando.current) return; const { x, y } = mouseCoords(e); desenharMouse(x, y); atualizarLupa(e.clientX, e.clientY) }}
+          onMouseUp={() => { finalizarMouse(); esconderLupa() }}
+          onMouseLeave={() => { finalizarMouse(); esconderLupa() }}
         />
+        {/* Lupa — posicionada acima do dedo */}
+        <div
+          ref={lupaRef}
+          className="absolute pointer-events-none z-10"
+          style={{ display: 'none', width: LUPA_R * 2, height: LUPA_R * 2, borderRadius: '50%', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.8)' }}
+        >
+          <canvas ref={lupaCanvasRef} width={LUPA_R * 2} height={LUPA_R * 2} style={{ display: 'block' }} />
+        </div>
       </div>
 
       {/* Controles */}

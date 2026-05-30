@@ -3,20 +3,19 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { getSupabase, Montagem } from '@/lib/supabase'
-import { Trash2, Download } from 'lucide-react'
+import EditorMontagem from '@/components/EditorMontagem'
+import { Trash2, Download, Plus } from 'lucide-react'
 
 export default function MontagensPage() {
   const [montagens, setMontagens] = useState<Montagem[]>([])
   const [loading, setLoading] = useState(true)
+  const [criando, setCriando] = useState(false)
 
   useEffect(() => { carregar() }, [])
 
   const carregar = async () => {
     setLoading(true)
-    const { data } = await getSupabase()
-      .from('montagens')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const { data } = await getSupabase().from('montagens').select('*').order('created_at', { ascending: false })
     setMontagens(data || [])
     setLoading(false)
   }
@@ -29,6 +28,16 @@ export default function MontagensPage() {
     setMontagens(prev => prev.filter(x => x.id !== m.id))
   }
 
+  const salvarMontagem = async (blob: Blob, nome: string) => {
+    const path = `${Date.now()}.jpg`
+    const { error } = await getSupabase().storage.from('montagens').upload(path, blob, { contentType: 'image/jpeg' })
+    if (error) { alert('Erro ao salvar'); return }
+    const { data: { publicUrl } } = getSupabase().storage.from('montagens').getPublicUrl(path)
+    await getSupabase().from('montagens').insert({ nome, imagem_url: publicUrl })
+    setCriando(false)
+    carregar()
+  }
+
   return (
     <div className="flex flex-col min-h-screen">
       <div className="px-4 pt-12 pb-4">
@@ -39,47 +48,43 @@ export default function MontagensPage() {
       </div>
 
       {loading ? (
-        <div className="flex-1 flex items-center justify-center text-gray-400">
-          Carregando...
-        </div>
+        <div className="flex-1 flex items-center justify-center text-gray-400">Carregando...</div>
       ) : montagens.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-gray-400 px-8 text-center">
           <span className="text-6xl mb-4">🎨</span>
           <p className="font-medium">Nenhuma montagem ainda</p>
-          <p className="text-sm mt-1">Vá em Looks → Criar Montagem</p>
+          <p className="text-sm mt-1">Toque no + para criar do zero</p>
         </div>
       ) : (
         <div className="flex flex-col gap-4 px-4 pb-4">
           {montagens.map(m => (
             <div key={m.id} className="bg-gray-50 rounded-2xl overflow-hidden">
-              <Image
-                src={m.imagem_url}
-                alt={m.nome || 'Montagem'}
-                width={600}
-                height={600}
-                className="w-full aspect-square object-cover"
-                unoptimized
-              />
+              <Image src={m.imagem_url} alt={m.nome || 'Montagem'} width={600} height={600} className="w-full aspect-square object-cover" unoptimized />
               <div className="flex items-center justify-between px-3 py-3">
                 <p className="font-semibold text-sm">{m.nome || 'Sem nome'}</p>
                 <div className="flex gap-2">
-                  <a
-                    href={m.imagem_url}
-                    download
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2 text-indigo-500"
-                  >
-                    <Download size={18} />
-                  </a>
-                  <button onClick={() => deletar(m)} className="p-2 text-red-400">
-                    <Trash2 size={18} />
-                  </button>
+                  <a href={m.imagem_url} download target="_blank" rel="noopener noreferrer" className="p-2 text-indigo-500"><Download size={18} /></a>
+                  <button onClick={() => deletar(m)} className="p-2 text-red-400"><Trash2 size={18} /></button>
                 </div>
               </div>
             </div>
           ))}
         </div>
+      )}
+
+      {/* FAB */}
+      <button
+        onClick={() => setCriando(true)}
+        className="fixed bottom-24 right-4 bg-indigo-600 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-xl z-10"
+      >
+        <Plus size={26} />
+      </button>
+
+      {criando && (
+        <EditorMontagem
+          onSalvar={salvarMontagem}
+          onFechar={() => setCriando(false)}
+        />
       )}
     </div>
   )
