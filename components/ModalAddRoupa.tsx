@@ -2,7 +2,8 @@
 import { useState, useRef } from 'react'
 import Image from 'next/image'
 import { getSupabase, CATEGORIAS, Categoria } from '@/lib/supabase'
-import { X, Camera, Upload, Sparkles, ImageOff } from 'lucide-react'
+import { X, Camera, Upload, Sparkles, ImageOff, Eraser } from 'lucide-react'
+import EditorPincel from '@/components/EditorPincel'
 
 interface Props {
   onClose: () => void
@@ -64,6 +65,7 @@ export default function ModalAddRoupa({ onClose, onAdded }: Props) {
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<StatusProcessamento>('idle')
   const [erro, setErro] = useState('')
+  const [editando, setEditando] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const processando = status === 'extraindo' || status === 'fundo'
@@ -158,6 +160,7 @@ export default function ModalAddRoupa({ onClose, onAdded }: Props) {
   }
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/60 z-[70] flex items-end" onClick={onClose}>
       <div
         className="bg-white w-full rounded-t-3xl p-6 pb-10 max-h-[90vh] overflow-y-auto"
@@ -230,7 +233,7 @@ export default function ModalAddRoupa({ onClose, onAdded }: Props) {
               </div>
             )}
 
-            {/* Badge de resultado */}
+            {/* Badge e controles pós-processamento */}
             {!processando && status !== 'idle' && badgeInfo[status as keyof typeof badgeInfo] && (
               <>
                 <button
@@ -243,6 +246,13 @@ export default function ModalAddRoupa({ onClose, onAdded }: Props) {
                   <Sparkles size={11} />
                   {badgeInfo[status as keyof typeof badgeInfo].texto}
                 </div>
+                {/* Botão apagador */}
+                <button
+                  onClick={() => setEditando(true)}
+                  className="absolute bottom-2 right-2 bg-white/90 text-gray-700 text-xs px-2 py-1 rounded-lg flex items-center gap-1 shadow"
+                >
+                  <Eraser size={12} /> Apagador
+                </button>
               </>
             )}
           </div>
@@ -292,5 +302,20 @@ export default function ModalAddRoupa({ onClose, onAdded }: Props) {
         </button>
       </div>
     </div>
+
+    {/* Editor de pincel — overlay full screen */}
+    {editando && preview && (
+      <EditorPincel
+        imagemUrl={preview}
+        onConfirmar={(blob) => {
+          const pf = new File([blob], 'editado.png', { type: 'image/png' })
+          setFile(pf)
+          setPreview(URL.createObjectURL(pf))
+          setEditando(false)
+        }}
+        onCancelar={() => setEditando(false)}
+      />
+    )}
+    </>
   )
 }
